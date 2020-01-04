@@ -1,5 +1,5 @@
 /*************************************************************************/
-/*  csg_gizmos.h                                                         */
+/*  csg_editor.cpp                                                       */
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
@@ -28,51 +28,71 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#ifndef CSG_GIZMOS_H
-#define CSG_GIZMOS_H
+#include "csg_menu.h"
 
-#include "csg_shape.h"
-#include "editor/editor_plugin.h"
-#include "editor/spatial_editor_gizmos.h"
+#include "editor/plugins/spatial_editor_plugin.h"
+#include "core/os/keyboard.h"
 
-class CSGShapeMenuPanelPlugin;
+void CSGShapeMenuPanelPlugin::_bind_methods() {
+	//ClassDB::bind_method(D_METHOD("_node_removed"), &CSGEditor::_node_removed);
+	ClassDB::bind_method(D_METHOD("toggle_extra_gizmos"), &CSGShapeMenuPanelPlugin::toggle_extra_gizmos);
+}
 
-class CSGShapeSpatialGizmoPlugin : public EditorSpatialGizmoPlugin {
+void CSGShapeMenuPanelPlugin::toggle_extra_gizmos(bool p_extra_handles) {
+	gizmos->set_extra_gizmos(p_extra_handles);
+	SpatialEditor::get_singleton()->update_all_gizmos();
+}
 
-	GDCLASS(CSGShapeSpatialGizmoPlugin, EditorSpatialGizmoPlugin);
-	CSGShapeMenuPanelPlugin *menu_panel;
+void CSGShapeMenuPanelPlugin::set_gizmos(CSGShapeSpatialGizmoPlugin *p_gizmos) {
+	gizmos = p_gizmos;
+}
 
-protected:
-	bool extra_gizmos;
-	bool first_set;
-	Transform old_transform;
+CheckBox *CSGShapeMenuPanelPlugin::get_check_box() {
+	return check_box;
+}
 
-public:
-	bool has_gizmo(Spatial *p_spatial);
-	String get_name() const;
-	int get_priority() const;
-	bool is_selectable_when_hidden() const;
-	void redraw(EditorSpatialGizmo *p_gizmo);
 
-	String get_handle_name(const EditorSpatialGizmo *p_gizmo, int p_idx) const;
-	Variant get_handle_value(EditorSpatialGizmo *p_gizmo, int p_idx) const;
-	void set_handle(EditorSpatialGizmo *p_gizmo, int p_idx, Camera *p_camera, const Point2 &p_point);
-	void commit_handle(EditorSpatialGizmo *p_gizmo, int p_idx, const Variant &p_restore, bool p_cancel);
+//bool CSGShapeMenuPanelPlugin::forward_gui_input(const Ref<InputEvent> &p_event) {
+//	print_line("Crossing my fingers.");
+//	return false;
+//}
 
-	void set_extra_gizmos(bool p_extra_handles);
-	void set_menu_panel(CSGShapeMenuPanelPlugin *p_menu_panel);
+CSGShapeMenuPanelPlugin::CSGShapeMenuPanelPlugin(EditorNode *p_editor) {
+	print_line("CSGShapeMenuPanelPlugin constructor called");
+	editor = p_editor;
 
-	CSGShapeSpatialGizmoPlugin();
-};
+	input_event = memnew(InputEventKey);
+	shortcut = memnew(ShortCut);
 
-class EditorPluginCSG : public EditorPlugin {
-	GDCLASS(EditorPluginCSG, EditorPlugin);
-	CSGShapeMenuPanelPlugin *menu_panel;
+	input_event->set_scancode(KEY_ALT);
+	shortcut->set_shortcut(input_event);
 
-public:
-	void make_visible(bool p_visible);
-	bool handles(Object *p_object) const;
-	EditorPluginCSG(EditorNode *p_editor);
-};
+	add_child(memnew(VSeparator));
+	check_box = memnew(CheckBox);
+	add_child(check_box);
+	check_box->connect("toggled", this, "toggle_extra_gizmos");
+	check_box->set_shortcut(shortcut);
+	check_box->set_action_mode(BaseButton::ActionMode::ACTION_MODE_BUTTON_PRESS);
+	check_box->set_text("Extra Gizmos");
+	check_box->set_tooltip("Show extra gizmos to adjust shape and translation at the same time.");
+}
 
-#endif // CSG_GIZMOS_H
+CSGShapeMenuPanelPlugin::CSGShapeMenuPanelPlugin() {
+	print_line("CSGShapeMenuPanelPlugin default constructor called");
+	input_event = NULL;
+	shortcut = NULL;
+}
+
+CSGShapeMenuPanelPlugin::~CSGShapeMenuPanelPlugin() {
+	print_line("CSGShapeMenuPanelPlugin destructor called");
+	if (input_event) {
+		print_line("input_event_deleted");
+		memdelete(input_event);
+		input_event = NULL;
+	}
+	if (shortcut) {
+		print_line("shortcut_deleted");
+		memdelete(shortcut);
+		shortcut = NULL;
+	}
+}

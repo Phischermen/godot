@@ -29,10 +29,15 @@
 /*************************************************************************/
 
 #include "csg_gizmos.h"
+#include "core/os/input.h"
+#include "core/os/keyboard.h"
+#include "csg_menu.h"
 
 ///////////
 
 CSGShapeSpatialGizmoPlugin::CSGShapeSpatialGizmoPlugin() {
+	set_extra_gizmos(false);
+	first_set = true;
 
 	Color gizmo_color = EDITOR_DEF("editors/3d_gizmos/gizmo_colors/csg", Color(0.0, 0.4, 1, 0.15));
 	create_material("shape_union_material", gizmo_color);
@@ -61,7 +66,7 @@ String CSGShapeSpatialGizmoPlugin::get_handle_name(const EditorSpatialGizmo *p_g
 	if (Object::cast_to<CSGBox>(cs)) {
 
 		static const char *hname[3] = { "Width", "Height", "Depth" };
-		return hname[p_idx];
+		return hname[p_idx % 3];
 	}
 
 	if (Object::cast_to<CSGCylinder>(cs)) {
@@ -89,7 +94,7 @@ Variant CSGShapeSpatialGizmoPlugin::get_handle_value(EditorSpatialGizmo *p_gizmo
 	if (Object::cast_to<CSGBox>(cs)) {
 
 		CSGBox *s = Object::cast_to<CSGBox>(cs);
-		switch (p_idx) {
+		switch (p_idx % 3) {
 			case 0: return s->get_width();
 			case 1: return s->get_height();
 			case 2: return s->get_depth();
@@ -114,30 +119,75 @@ void CSGShapeSpatialGizmoPlugin::set_handle(EditorSpatialGizmo *p_gizmo, int p_i
 
 	CSGShape *cs = Object::cast_to<CSGShape>(p_gizmo->get_spatial_node());
 
-	Transform gt = cs->get_global_transform();
+	static Transform gt;
+	static Transform lt;
+	if (first_set) {
+		menu_panel->get_check_box()->set_disabled(true);
+		gt = cs->get_global_transform();
+		lt = cs->get_transform();
+		old_transform = lt;
+	}
 	//gt.orthonormalize();
 	Transform gi = gt.affine_inverse();
+	Transform li = lt.affine_inverse();
 
 	Vector3 ray_from = p_camera->project_ray_origin(p_point);
 	Vector3 ray_dir = p_camera->project_ray_normal(p_point);
 
 	Vector3 sg[2] = { gi.xform(ray_from), gi.xform(ray_from + ray_dir * 16384) };
+	Vector3 sl[2] = { li.xform(ray_from), li.xform(ray_from + ray_dir * 16384) };
 
 	if (Object::cast_to<CSGSphere>(cs)) {
 
 		CSGSphere *s = Object::cast_to<CSGSphere>(cs);
 
+		Vector3 axis;
+		axis[p_idx % 3] = 1.0;
 		Vector3 ra, rb;
-		Geometry::get_closest_points_between_segments(Vector3(), Vector3(4096, 0, 0), sg[0], sg[1], ra, rb);
-		float d = ra.x;
+		if (extra_gizmos) {
+			Geometry::get_closest_points_between_segments(Vector3(), axis * 4096, sl[0], sl[1], ra, rb);
+		} else {
+			Geometry::get_closest_points_between_segments(Vector3(), axis * 4096, sg[0], sg[1], ra, rb);
+		}
+		float d = rb[p_idx % 3];
+		d = Math::abs(d);
 		if (SpatialEditor::get_singleton()->is_snap_enabled()) {
 			d = Math::stepify(d, SpatialEditor::get_singleton()->get_translate_snap());
 		}
 
+		int sign = (p_idx > 2) ? -1 : 1;
+		if (first_set && extra_gizmos)
+			d = d * 2;
 		if (d < 0.001)
 			d = 0.001;
-
-		s->set_radius(d);
+		if (extra_gizmos) {
+			d = d * 0.5;
+			switch (p_idx % 3) {
+				case 0:
+					if (first_set) {
+						lt = lt.translated(Vector3(s->get_radius() * -sign, 0, 0));
+					}
+					s->set_radius(d);
+					s->set_transform(lt.translated(Vector3(d * sign, 0, 0)));
+					break;
+				case 1:
+					if (first_set) {
+						lt = lt.translated(Vector3(0, s->get_radius() * -sign, 0));
+					}
+					s->set_radius(d);
+					s->set_transform(lt.translated(Vector3(0, d * sign, 0)));
+					break;
+				case 2:
+					if (first_set) {
+						lt = lt.translated(Vector3(0, 0, s->get_radius() * -sign));
+					}
+					s->set_radius(d);
+					s->set_transform(lt.translated(Vector3(0, 0, d * sign)));
+					break;
+			}
+		} else {
+			s->set_radius(d);
+		}
 	}
 
 	if (Object::cast_to<CSGBox>(cs)) {
@@ -145,21 +195,58 @@ void CSGShapeSpatialGizmoPlugin::set_handle(EditorSpatialGizmo *p_gizmo, int p_i
 		CSGBox *s = Object::cast_to<CSGBox>(cs);
 
 		Vector3 axis;
-		axis[p_idx] = 1.0;
+		axis[p_idx % 3] = 1.0;
 		Vector3 ra, rb;
-		Geometry::get_closest_points_between_segments(Vector3(), axis * 4096, sg[0], sg[1], ra, rb);
-		float d = ra[p_idx];
+		if (extra_gizmos) {
+			Geometry::get_closest_points_between_segments(Vector3(), axis * 4096, sl[0], sl[1], ra, rb);
+		} else {
+			Geometry::get_closest_points_between_segments(Vector3(), axis * 4096, sg[0], sg[1], ra, rb);
+		}
+		float d = rb[p_idx % 3];
+		d = Math::abs(d);
 		if (SpatialEditor::get_singleton()->is_snap_enabled()) {
 			d = Math::stepify(d, SpatialEditor::get_singleton()->get_translate_snap());
 		}
-
+		int sign = (p_idx > 2) ? -1 : 1;
+		if (first_set && extra_gizmos)
+			d = d * 2;
 		if (d < 0.001)
 			d = 0.001;
 
-		switch (p_idx) {
-			case 0: s->set_width(d * 2); break;
-			case 1: s->set_height(d * 2); break;
-			case 2: s->set_depth(d * 2); break;
+		switch (p_idx % 3) {
+			case 0:
+				if (first_set && extra_gizmos) {
+					lt = lt.translated(Vector3(s->get_width() * 0.5 * -sign, 0, 0));
+				}
+				if (extra_gizmos) {
+					s->set_width(d);
+					s->set_transform(lt.translated(Vector3(d * 0.5 * sign, 0, 0)));
+				} else {
+					s->set_width(d * 2);
+				}
+				break;
+			case 1:
+				if (first_set && extra_gizmos) {
+					lt = lt.translated(Vector3(0, s->get_height() * 0.5 * -sign, 0));
+				}
+				if (extra_gizmos) {
+					s->set_height(d);
+					s->set_transform(lt.translated(Vector3(0, d * 0.5 * sign, 0)));
+				} else {
+					s->set_height(d * 2);
+				}
+				break;
+			case 2:
+				if (first_set && extra_gizmos) {
+					lt = lt.translated(Vector3(0, 0, s->get_depth() * 0.5 * -sign));
+				}
+				if (extra_gizmos) {
+					s->set_depth(d);
+					s->set_transform(lt.translated(Vector3(0, 0, d * 0.5 * sign)));
+				} else {
+					s->set_depth(d * 2);
+				}
+				break;
 		}
 	}
 
@@ -206,8 +293,13 @@ void CSGShapeSpatialGizmoPlugin::set_handle(EditorSpatialGizmo *p_gizmo, int p_i
 		else if (p_idx == 1)
 			s->set_outer_radius(d);
 	}
+
+	first_set = false;
 }
 void CSGShapeSpatialGizmoPlugin::commit_handle(EditorSpatialGizmo *p_gizmo, int p_idx, const Variant &p_restore, bool p_cancel) {
+
+	first_set = true;
+	menu_panel->get_check_box()->set_disabled(false);
 
 	CSGShape *cs = Object::cast_to<CSGShape>(p_gizmo->get_spatial_node());
 
@@ -221,14 +313,20 @@ void CSGShapeSpatialGizmoPlugin::commit_handle(EditorSpatialGizmo *p_gizmo, int 
 		UndoRedo *ur = SpatialEditor::get_singleton()->get_undo_redo();
 		ur->create_action(TTR("Change Sphere Shape Radius"));
 		ur->add_do_method(s, "set_radius", s->get_radius());
+		if (extra_gizmos) {
+			ur->add_do_method(s, "set_transform", s->get_transform());
+		}
 		ur->add_undo_method(s, "set_radius", p_restore);
+		if (extra_gizmos) {
+			ur->add_undo_method(s, "set_transform", old_transform);
+		}
 		ur->commit_action();
 	}
 
 	if (Object::cast_to<CSGBox>(cs)) {
 		CSGBox *s = Object::cast_to<CSGBox>(cs);
 		if (p_cancel) {
-			switch (p_idx) {
+			switch (p_idx % 3) {
 				case 0: s->set_width(p_restore); break;
 				case 1: s->set_height(p_restore); break;
 				case 2: s->set_depth(p_restore); break;
@@ -240,14 +338,21 @@ void CSGShapeSpatialGizmoPlugin::commit_handle(EditorSpatialGizmo *p_gizmo, int 
 		ur->create_action(TTR("Change Box Shape Extents"));
 		static const char *method[3] = { "set_width", "set_height", "set_depth" };
 		float current = 0;
-		switch (p_idx) {
+		switch (p_idx % 3) {
 			case 0: current = s->get_width(); break;
 			case 1: current = s->get_height(); break;
 			case 2: current = s->get_depth(); break;
 		}
 
-		ur->add_do_method(s, method[p_idx], current);
-		ur->add_undo_method(s, method[p_idx], p_restore);
+		ur->add_do_method(s, method[p_idx % 3], current);
+		if (extra_gizmos) {
+			ur->add_do_method(s, "set_transform", s->get_transform());
+		}
+		ur->add_undo_method(s, method[p_idx % 3], p_restore);
+		if (extra_gizmos) {
+			ur->add_undo_method(s, "set_transform", old_transform);
+		}
+
 		ur->commit_action();
 	}
 
@@ -309,6 +414,14 @@ String CSGShapeSpatialGizmoPlugin::get_name() const {
 
 int CSGShapeSpatialGizmoPlugin::get_priority() const {
 	return -1;
+}
+
+void CSGShapeSpatialGizmoPlugin::set_extra_gizmos(bool p_extra_gizmos) {
+	extra_gizmos = p_extra_gizmos;
+}
+
+void CSGShapeSpatialGizmoPlugin::set_menu_panel(CSGShapeMenuPanelPlugin *p_menu_panel) {
+	menu_panel = p_menu_panel;
 }
 
 bool CSGShapeSpatialGizmoPlugin::is_selectable_when_hidden() const {
@@ -386,6 +499,13 @@ void CSGShapeSpatialGizmoPlugin::redraw(EditorSpatialGizmo *p_gizmo) {
 		float r = s->get_radius();
 		Vector<Vector3> handles;
 		handles.push_back(Vector3(r, 0, 0));
+		if (extra_gizmos) {
+			handles.push_back(Vector3(0, r, 0));
+			handles.push_back(Vector3(0, 0, r));
+			handles.push_back(Vector3(-r, 0, 0));
+			handles.push_back(Vector3(0, -r, 0));
+			handles.push_back(Vector3(0, 0, -r));
+		}
 		p_gizmo->add_handles(handles, handles_material);
 	}
 
@@ -396,6 +516,11 @@ void CSGShapeSpatialGizmoPlugin::redraw(EditorSpatialGizmo *p_gizmo) {
 		handles.push_back(Vector3(s->get_width() * 0.5, 0, 0));
 		handles.push_back(Vector3(0, s->get_height() * 0.5, 0));
 		handles.push_back(Vector3(0, 0, s->get_depth() * 0.5));
+		if (extra_gizmos) {
+			handles.push_back(Vector3(s->get_width() * -0.5, 0, 0));
+			handles.push_back(Vector3(0, s->get_height() * -0.5, 0));
+			handles.push_back(Vector3(0, 0, s->get_depth() * -0.5));
+		}
 		p_gizmo->add_handles(handles, handles_material);
 	}
 
@@ -418,7 +543,25 @@ void CSGShapeSpatialGizmoPlugin::redraw(EditorSpatialGizmo *p_gizmo) {
 	}
 }
 
+void EditorPluginCSG::make_visible(bool p_visible) {
+	if (p_visible) {
+		menu_panel->show();
+	} else {
+		menu_panel->hide();
+	}
+}
+
+bool EditorPluginCSG::handles(Object *p_object) const {
+	return Object::cast_to<CSGPrimitive>(p_object);
+}
+
 EditorPluginCSG::EditorPluginCSG(EditorNode *p_editor) {
 	Ref<CSGShapeSpatialGizmoPlugin> gizmo_plugin = Ref<CSGShapeSpatialGizmoPlugin>(memnew(CSGShapeSpatialGizmoPlugin));
+	CSGShapeMenuPanelPlugin *menu_plugin = memnew(CSGShapeMenuPanelPlugin(p_editor));
+	gizmo_plugin->set_menu_panel(menu_plugin);
+	menu_panel = menu_plugin;
+	menu_panel->set_gizmos(*gizmo_plugin);
 	SpatialEditor::get_singleton()->add_gizmo_plugin(gizmo_plugin);
+	SpatialEditor::get_singleton()->add_control_to_menu_panel(menu_panel);
+	menu_panel->hide();
 }

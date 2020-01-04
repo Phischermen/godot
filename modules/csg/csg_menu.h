@@ -1,5 +1,5 @@
 /*************************************************************************/
-/*  csg_gizmos.h                                                         */
+/*  csg_menu.h                                                           */
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
@@ -28,51 +28,55 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#ifndef CSG_GIZMOS_H
-#define CSG_GIZMOS_H
+#ifndef CSG_MENU_H
+#define CSG_MENU_H
 
-#include "csg_shape.h"
+#include "editor/editor_node.h"
 #include "editor/editor_plugin.h"
-#include "editor/spatial_editor_gizmos.h"
+#include "modules/csg/csg_gizmos.h"
+#include "scene/gui/check_box.h"
 
-class CSGShapeMenuPanelPlugin;
+class CSGShapeMenuPanelPlugin : public HBoxContainer {
 
-class CSGShapeSpatialGizmoPlugin : public EditorSpatialGizmoPlugin {
+	GDCLASS(CSGShapeMenuPanelPlugin, HBoxContainer);
 
-	GDCLASS(CSGShapeSpatialGizmoPlugin, EditorSpatialGizmoPlugin);
-	CSGShapeMenuPanelPlugin *menu_panel;
+	CheckBox *check_box;
+	
+	EditorNode *editor;
+	CSGShapeSpatialGizmoPlugin *gizmos;
+	//bool extra_handles;
+	InputEventKey *input_event;
+	ShortCut *shortcut;
 
 protected:
-	bool extra_gizmos;
-	bool first_set;
-	Transform old_transform;
+	//void _node_removed(Node *p_node);
+	static void _bind_methods();
+	void toggle_extra_gizmos(bool);
 
 public:
-	bool has_gizmo(Spatial *p_spatial);
-	String get_name() const;
-	int get_priority() const;
-	bool is_selectable_when_hidden() const;
-	void redraw(EditorSpatialGizmo *p_gizmo);
-
-	String get_handle_name(const EditorSpatialGizmo *p_gizmo, int p_idx) const;
-	Variant get_handle_value(EditorSpatialGizmo *p_gizmo, int p_idx) const;
-	void set_handle(EditorSpatialGizmo *p_gizmo, int p_idx, Camera *p_camera, const Point2 &p_point);
-	void commit_handle(EditorSpatialGizmo *p_gizmo, int p_idx, const Variant &p_restore, bool p_cancel);
-
-	void set_extra_gizmos(bool p_extra_handles);
-	void set_menu_panel(CSGShapeMenuPanelPlugin *p_menu_panel);
-
-	CSGShapeSpatialGizmoPlugin();
+	//bool forward_gui_input(const Ref<InputEvent> &p_event);
+	void set_gizmos(CSGShapeSpatialGizmoPlugin *p_gizmos);
+	CheckBox *get_check_box();
+	CSGShapeMenuPanelPlugin(EditorNode *p_editor);
+	CSGShapeMenuPanelPlugin();
+	~CSGShapeMenuPanelPlugin();
 };
 
-class EditorPluginCSG : public EditorPlugin {
-	GDCLASS(EditorPluginCSG, EditorPlugin);
-	CSGShapeMenuPanelPlugin *menu_panel;
-
-public:
-	void make_visible(bool p_visible);
-	bool handles(Object *p_object) const;
-	EditorPluginCSG(EditorNode *p_editor);
-};
-
-#endif // CSG_GIZMOS_H
+//class CSGEditorPlugin : public EditorPlugin {
+//
+//	GDCLASS(CSGEditorPlugin, EditorPlugin);
+//
+//	//CSGShapeMenuPanelPlugin *CSG_MENU_H;
+//	EditorNode *editor;
+//	String klass;
+//
+//public:
+//	//virtual bool forward_canvas_gui_input(const Ref<InputEvent> &p_event) { return CSG_MENU_H->forward_gui_input(p_event); }
+//
+//	bool has_main_screen() const { return false; }
+//	virtual String get_name() const { return klass; }
+//
+//	CSGEditorPlugin(EditorNode *p_node, CSGShapeMenuPanelPlugin *p_CSG_MENU_H, String p_class);
+//	~CSGEditorPlugin();
+//};
+#endif // CSG_MENU_H
