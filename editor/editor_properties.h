@@ -613,7 +613,11 @@ class EditorPropertyResource : public EditorProperty {
 	Button *edit;
 	PopupMenu *menu;
 	EditorFileDialog *file;
-	Vector<String> inheritors_array;
+	struct Inheritor {
+		String type;
+		const EditorData::CustomType *custom_resource = nullptr;
+	};
+	Vector<Inheritor> inheritors_array;
 	EditorInspector *sub_inspector;
 	VBoxContainer *sub_inspector_vbox;
 

@@ -105,6 +105,7 @@ class EditorData {
 public:
 	struct CustomType {
 		String name;
+		String base;
 		Ref<Script> script;
 		Ref<Texture2D> icon;
 	};

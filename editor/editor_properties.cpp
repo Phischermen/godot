@@ -2444,7 +2444,8 @@ void EditorPropertyResource::_menu_option(int p_which) {
 			}
 			ERR_FAIL_COND(inheritors_array.empty());
 
-			String intype = inheritors_array[p_which - TYPE_BASE_ID];
+			Inheritor inheritor = inheritors_array[p_which - TYPE_BASE_ID];
+			String intype = inheritor.type;
 
 			if (intype == "ViewportTexture") {
 				Resource *r = Object::cast_to<Resource>(get_edited_object());
@@ -2483,12 +2484,10 @@ void EditorPropertyResource::_menu_option(int p_which) {
 						obj->set_script(Variant(script));
 					}
 				}
+			} else if (inheritor.custom_resource) {
+				obj = EditorNode::get_editor_data().instance_custom_type(intype, inheritor.custom_resource->base);
 			} else {
 				obj = ClassDB::instance(intype);
-			}
-
-			if (!obj) {
-				obj = EditorNode::get_editor_data().instance_custom_type(intype, "Resource");
 			}
 
 			ERR_BREAK(!obj);
@@ -2547,11 +2546,7 @@ void EditorPropertyResource::_update_menu_items() {
 	} else if (base_type != "") {
 		int idx = 0;
 
-		Vector<EditorData::CustomType> custom_resources;
-
-		if (EditorNode::get_editor_data().get_custom_types().has("Resource")) {
-			custom_resources = EditorNode::get_editor_data().get_custom_types()["Resource"];
-		}
+		Vector<const EditorData::CustomType *> custom_resources;
 
 		for (int i = 0; i < base_type.get_slice_count(","); i++) {
 			String base = base_type.get_slice(",", i);
@@ -2561,13 +2556,26 @@ void EditorPropertyResource::_update_menu_items() {
 			List<StringName> inheritors;
 			ClassDB::get_inheriters_from_class(base.strip_edges(), &inheritors);
 
-			for (int j = 0; j < custom_resources.size(); j++) {
-				inheritors.push_back(custom_resources[j].name);
+			//Get custom types from base
+			if (EditorNode::get_editor_data().get_custom_types().has(base)) {
+				Vector<EditorData::CustomType> custom_resources_of_base = EditorNode::get_editor_data().get_custom_types()[base];
+				for (int j = 0; j < custom_resources_of_base.size(); j++) {
+					custom_resources.push_back(&custom_resources_of_base[j]);
+					valid_inheritors.insert(custom_resources_of_base[j].name);
+				}
 			}
 
+			//Get custom types from inheritors
 			List<StringName>::Element *E = inheritors.front();
 			while (E) {
 				valid_inheritors.insert(E->get());
+				if (EditorNode::get_editor_data().get_custom_types().has(E->get())) {
+					Vector<EditorData::CustomType> custom_resources_of_inheriter = EditorNode::get_editor_data().get_custom_types()[E->get()];
+					for (int j = 0; j < custom_resources_of_inheriter.size(); j++) {
+						custom_resources.push_back(&custom_resources_of_inheriter[j]);
+						valid_inheritors.insert(custom_resources_of_inheriter[j].name);
+					}
+				}
 				E = E->next();
 			}
 
@@ -2585,13 +2593,15 @@ void EditorPropertyResource::_update_menu_items() {
 				const String &t = F->get();
 
 				bool is_custom_resource = false;
+				int custom_resource_idx = 0;
 				Ref<Texture2D> icon;
 				if (!custom_resources.empty()) {
 					for (int j = 0; j < custom_resources.size(); j++) {
-						if (custom_resources[j].name == t) {
+						if (custom_resources[j]->name == t) {
 							is_custom_resource = true;
-							if (custom_resources[j].icon.is_valid()) {
-								icon = custom_resources[j].icon;
+							custom_resource_idx = j;
+							if (custom_resources[j]->icon.is_valid()) {
+								icon = custom_resources[j]->icon;
 							}
 							break;
 						}
@@ -2602,7 +2612,12 @@ void EditorPropertyResource::_update_menu_items() {
 					continue;
 				}
 
-				inheritors_array.push_back(t);
+				Inheritor inheritor;
+				inheritor.type = t;
+				//Flag item as custom resource so that it is instanced properly later
+				if (is_custom_resource)
+					inheritor.custom_resource = custom_resources[custom_resource_idx];
+				inheritors_array.push_back(inheritor);
 
 				if (!icon.is_valid()) {
 					icon = get_theme_icon(has_theme_icon(t, "EditorIcons") ? t : "Object", "EditorIcons");
