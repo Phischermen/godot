@@ -72,6 +72,7 @@ private:
 		int icon_max_w;
 		bool expr;
 		bool checked;
+		int checked_children;
 		bool editable;
 		bool selected;
 		bool selectable;
@@ -117,6 +118,7 @@ private:
 			step = 1;
 			val = 0;
 			checked = false;
+			checked_children = 0;
 			editable = false;
 			selected = false;
 			selectable = true;
@@ -134,6 +136,7 @@ private:
 	};
 
 	Vector<Cell> cells;
+	int number_of_children;
 
 	bool collapsed; // won't show children
 	bool disable_folding;
@@ -142,6 +145,7 @@ private:
 	TreeItem *parent; // parent item
 	TreeItem *next; // next in list
 	TreeItem *children; //child items
+	TreeItem *next_checked; //next item affected by set_check
 	Tree *tree; //tree (for reference)
 
 	TreeItem(Tree *p_tree);
@@ -178,7 +182,10 @@ public:
 
 	/* check mode */
 	void set_checked(int p_column, bool p_checked);
+	TreeItem *check_children(int p_column, bool p_checked);
+	void check_parent(int p_column, TreeItem *p_prev);
 	bool is_checked(int p_column) const;
+	TreeItem *get_next_affected_by_check();
 
 	void set_text(int p_column, String p_text);
 	String get_text(int p_column) const;
@@ -234,6 +241,7 @@ public:
 	TreeItem *get_next();
 	TreeItem *get_parent();
 	TreeItem *get_children();
+	int get_number_of_children();
 
 	TreeItem *get_prev_visible(bool p_wrap = false);
 	TreeItem *get_next_visible(bool p_wrap = false);

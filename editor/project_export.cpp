@@ -882,8 +882,12 @@ void ProjectExportDialog::_fill_resource_tree() {
 }
 
 bool ProjectExportDialog::_fill_tree(EditorFileSystemDirectory *p_dir, TreeItem *p_item, Ref<EditorExportPreset> &current, bool p_only_scenes) {
+	p_item->set_cell_mode(0, TreeItem::CELL_MODE_CHECK);
 	p_item->set_icon(0, presets->get_theme_icon("folder", "FileDialog"));
 	p_item->set_text(0, p_dir->get_name() + "/");
+	p_item->set_editable(0, true);
+	p_item->set_checked(0, true);
+	p_item->set_metadata(0, String());
 
 	bool used = false;
 	for (int i = 0; i < p_dir->get_subdir_count(); i++) {
@@ -929,17 +933,17 @@ void ProjectExportDialog::_tree_changed() {
 	}
 
 	TreeItem *item = include_files->get_edited();
-	if (!item) {
-		return;
-	}
-
-	String path = item->get_metadata(0);
-	bool added = item->is_checked(0);
-
-	if (added) {
-		current->add_export_file(path);
-	} else {
-		current->remove_export_file(path);
+	while (item) {
+		String path = item->get_metadata(0);
+		if (path != String()) {
+			bool added = item->is_checked(0);
+			if (added) {
+				current->add_export_file(path);
+			} else {
+				current->remove_export_file(path);
+			}
+		}
+		item = item->get_next_affected_by_check();
 	}
 }
 

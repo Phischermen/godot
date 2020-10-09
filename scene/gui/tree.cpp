@@ -141,13 +141,50 @@ TreeItem::TreeCellMode TreeItem::get_cell_mode(int p_column) const {
 /* check mode */
 void TreeItem::set_checked(int p_column, bool p_checked) {
 	ERR_FAIL_INDEX(p_column, cells.size());
+	cells.write[p_column].checked_children = (p_checked) ? number_of_children : 0;
+	if (parent && p_checked != cells[p_column].checked)
+		parent->cells.write[p_column].checked_children += (p_checked) ? 1 : -1;
 	cells.write[p_column].checked = p_checked;
+	check_parent(p_column, check_children(p_column, p_checked));
 	_changed_notify(p_column);
+}
+
+TreeItem *TreeItem::check_children(int p_column, bool p_checked) {
+	TreeItem *item = get_children();
+	TreeItem *prev = this;
+	while (item) {
+		prev->next_checked = item;
+		item->cells.write[p_column].checked = p_checked;
+		if (item->children)
+			prev = item->check_children(p_column, p_checked);
+		else
+			prev = item;
+		item = item->get_next();
+	}
+	return prev;
+}
+
+void TreeItem::check_parent(int p_column, TreeItem *p_prev) {
+	TreeItem *item = get_parent();
+	while (item) {
+		p_prev->next_checked = item;
+		bool ch = item->cells[p_column].checked_children > 0;
+		if (item->parent && ch != item->cells[p_column].checked)
+			item->parent->cells.write[p_column].checked_children += (ch) ? 1 : -1;
+		item->cells.write[p_column].checked = ch;
+		p_prev = item;
+		item = item->parent;
+	}
+	p_prev->next_checked = nullptr;
 }
 
 bool TreeItem::is_checked(int p_column) const {
 	ERR_FAIL_INDEX_V(p_column, cells.size(), false);
 	return cells[p_column].checked;
+}
+
+TreeItem *TreeItem::get_next_affected_by_check() {
+	return next_checked;
 }
 
 void TreeItem::set_text(int p_column, String p_text) {
@@ -359,6 +396,10 @@ TreeItem *TreeItem::get_children() {
 	return children;
 }
 
+int TreeItem::get_number_of_children() {
+	return number_of_children;
+}
+
 TreeItem *TreeItem::get_prev_visible(bool p_wrap) {
 	TreeItem *current = this;
 
@@ -433,6 +474,7 @@ void TreeItem::remove_child(TreeItem *p_item) {
 			*c = (*c)->next;
 
 			aux->parent = nullptr;
+			number_of_children -= 1;
 			return;
 		}
 
@@ -715,6 +757,7 @@ void TreeItem::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_checked", "column", "checked"), &TreeItem::set_checked);
 	ClassDB::bind_method(D_METHOD("is_checked", "column"), &TreeItem::is_checked);
+	ClassDB::bind_method(D_METHOD("get_next_affected_by_check"), &TreeItem::get_next_affected_by_check);
 
 	ClassDB::bind_method(D_METHOD("set_text", "column", "text"), &TreeItem::set_text);
 	ClassDB::bind_method(D_METHOD("get_text", "column"), &TreeItem::get_text);
@@ -754,6 +797,7 @@ void TreeItem::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_prev"), &TreeItem::get_prev);
 	ClassDB::bind_method(D_METHOD("get_parent"), &TreeItem::get_parent);
 	ClassDB::bind_method(D_METHOD("get_children"), &TreeItem::get_children);
+	ClassDB::bind_method(D_METHOD("get_number_of_children"), &TreeItem::get_number_of_children);
 
 	ClassDB::bind_method(D_METHOD("get_next_visible", "wrap"), &TreeItem::get_next_visible, DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("get_prev_visible", "wrap"), &TreeItem::get_prev_visible, DEFVAL(false));
@@ -844,9 +888,11 @@ TreeItem::TreeItem(Tree *p_tree) {
 	disable_folding = false;
 	custom_min_height = 0;
 
+	number_of_children = 0;
 	parent = nullptr; // parent item
 	next = nullptr; // next in list
 	children = nullptr; //child items
+	next_checked = nullptr; //next item affected by set_checked
 }
 
 TreeItem::~TreeItem() {
@@ -2958,6 +3004,7 @@ TreeItem *Tree::create_item(TreeItem *p_parent, int p_idx) {
 		// Append or insert a new item to the given parent.
 		ti = memnew(TreeItem(this));
 		ERR_FAIL_COND_V(!ti, nullptr);
+		p_parent->number_of_children += 1;
 		ti->cells.resize(columns.size());
 
 		TreeItem *prev = nullptr;
