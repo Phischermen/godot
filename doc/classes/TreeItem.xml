@@ -199,6 +199,13 @@
 				Returns the next TreeItem in the tree or a null object if there is none.
 			</description>
 		</method>
+		<method name="get_next_affected_by_check">
+			<return type="TreeItem">
+			</return>
+			<description>
+				Returns the TreeItem that was affected next by [method set_checked] or null object if this is the last item affected.
+			</description>
+		</method>
 		<method name="get_next_visible">
 			<return type="TreeItem">
 			</return>
@@ -207,6 +214,13 @@
 			<description>
 				Returns the next visible TreeItem in the tree or a null object if there is none.
 				If [code]wrap[/code] is enabled, the method will wrap around to the first visible element in the tree when called on the last visible element, otherwise it returns [code]null[/code].
+			</description>
+		</method>
+		<method name="get_number_of_children">
+			<return type="int">
+			</return>
+			<description>
+				Returns the number of child items this TreeItem has.
 			</description>
 		</method>
 		<method name="get_parent">
@@ -416,7 +430,7 @@
 			<argument index="1" name="checked" type="bool">
 			</argument>
 			<description>
-				If [code]true[/code], the column [code]column[/code] is checked.
+				If [code]true[/code], the column [code]column[/code] is checked. If children exist, each child is checked the same as the original item. If parents exist, each parent is checked if at least one of its children is checked. To iterate over each item affected by this method, use [method get_next_affected_by_check].
 			</description>
 		</method>
 		<method name="set_custom_as_button">
